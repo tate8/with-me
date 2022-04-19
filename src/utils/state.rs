@@ -5,7 +5,11 @@ use winit::
     window::{Window},
 };
 
-use super::vertex::Vertex;
+use super::
+{
+    vertex,
+    texture,
+};
 
 
 /*
@@ -14,13 +18,13 @@ use super::vertex::Vertex;
     elements in VERTICES to create the triangles
 */
 // Changed
-const VERTICES: &[Vertex] = 
+const VERTICES: &[vertex::Vertex] = 
 &[
-    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], },
-    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], },
-    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], },
-    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], },
-    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], },
+    vertex::Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], },
+    vertex::Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], },
+    vertex::Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], },
+    vertex::Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], },
+    vertex::Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], },
 ];
 const INDICES: &[u16] = 
 &[
@@ -44,6 +48,7 @@ pub struct State
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
+    diffuse_texture: texture::Texture,
 }
 
 impl State
@@ -93,77 +98,13 @@ impl State
         surface.configure(&device, &config);
 
 
-        
-        // <--------------Creating Texture-------------->
-        // grab the bytes from our image file and load them into an image
-        // which is then converted into a Vec of rgba bytes
+
+
+
+        // Texture creation (see 'texture.rs')
         let diffuse_bytes = include_bytes!("../../images/happy_tree.png");
-        let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-        let diffuse_rgba = diffuse_image.to_rgba8(); // supposed to be unwrap (error messaging) idk why it isn't implemented
-        
-        use image::GenericImageView;    
-        let dimensions = diffuse_image.dimensions();
+        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "../../images/happy_tree.png").unwrap();
 
-        // create the Texture
-        let texture_size = wgpu::Extent3d
-        {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
-        };
-        let diffuse_texture = device.create_texture(
-            &wgpu::TextureDescriptor
-            {
-                // All textures are stored as 3D, we represent our 2D texture by setting depth to 1.
-                size: texture_size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                // TEXTURE_BINDING tells wgpu that we want to use this texture in shaders
-                // COPY_DST means that we want to copy data to this texture
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                label: Some("diffuse texture"),
-            }
-        );
-        // load the texture in
-        queue.write_texture(
-            // tells wgpu where to copy pixel data
-            wgpu::ImageCopyTexture
-            {
-                texture: &diffuse_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            // actual pixel data
-            &diffuse_rgba,
-            // layout of texture
-            wgpu::ImageDataLayout
-            {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
-                rows_per_image: std::num::NonZeroU32::new(dimensions.1),
-            },
-            texture_size,
-        );
-
-        // A TextureView offers us a view into our texture
-        let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        // A Sampler controls how the Texture is sampled
-        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor
-        {
-            // address_mode_* parameters determine what to do if the sampler 
-            // gets a texture coordinate that's outside the texture itself
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            // what to do when a fragment covers multiple pixels or vice versa
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
 
         // A BindGroup describes a set of resources and how they can be accessed by a shader
         let texture_bind_group_layout = 
@@ -201,11 +142,11 @@ impl State
                     wgpu::BindGroupEntry
                     {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&diffuse_texture_view),
+                        resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
+                        resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
                     },
                 ],
                 label: Some("diffuse_bind_group"),
@@ -213,6 +154,10 @@ impl State
         );
         // <--------------END-------------->
 
+
+
+        
+        
         let clear_color = wgpu::Color::BLACK;
 
         // <--------------Making Render Pipeline-------------->
@@ -241,7 +186,7 @@ impl State
             {
                 module: &shader,
                 entry_point: "vs_main",             // entry point of shader (name of fn)
-                buffers: &[Vertex::desc(),],        // what type of vertices we want to pass to the vertex shader
+                buffers: &[vertex::Vertex::desc(),],        // what type of vertices we want to pass to the vertex shader
             },
 
             // Fragment shader
@@ -312,6 +257,7 @@ impl State
             index_buffer,
             num_indices,
             diffuse_bind_group,
+            diffuse_texture,
         }
     }
 

@@ -8,12 +8,13 @@ more encapsulation and modularaization
 use winit::
 {
     event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder},
+    event_loop::{ ControlFlow, EventLoop },
+    window::{ WindowBuilder },
 };
 
 // utils is my module
 use utils::state::State;
+
 mod utils;
 
 
