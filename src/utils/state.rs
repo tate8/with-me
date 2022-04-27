@@ -10,6 +10,7 @@ use super::
     vertex,
     texture,
     camera,
+    camera_controller,
 };
 
 
@@ -21,11 +22,11 @@ use super::
 // Changed
 const VERTICES: &[vertex::Vertex] = 
 &[
-    vertex::Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], },
-    vertex::Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], },
-    vertex::Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], },
-    vertex::Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], },
-    vertex::Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], },
+    vertex::Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614], },
+    vertex::Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354], },
+    vertex::Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397], },
+    vertex::Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914], },
+    vertex::Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641], },
 ];
 const INDICES: &[u16] = 
 &[
@@ -51,6 +52,7 @@ pub struct State
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
     camera: camera::Camera,
+    camera_controller: camera_controller::CameraController,
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -158,6 +160,8 @@ impl State
         );
 
         // Camera Stuff
+
+        let camera_controller = camera_controller::CameraController::new(0.05);
 
         let camera = camera::Camera
         {
@@ -330,6 +334,7 @@ impl State
             diffuse_bind_group,
             diffuse_texture,
             camera,
+            camera_controller,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
@@ -352,25 +357,31 @@ impl State
     // returns a bool to indicate whether an event has been fully processed
     pub fn input(&mut self, event: &WindowEvent) -> bool
     {
+        self.camera_controller.process_events(event)
+
         // when cursor moved --->
         // uses cursor position to set self.clear_color
         // this is used in the render pass to describe the window color
-        match event {
-            WindowEvent::CursorMoved { position, .. } => {
-                self.clear_color = wgpu::Color {
-                    r: position.x as f64 / self.size.width as f64,
-                    g: position.y as f64 / self.size.height as f64,
-                    b: 1.0,
-                    a: 1.0,
-                };
-                true
-            }
-            _ => false,
-        }
+        // match event {
+        //     WindowEvent::CursorMoved { position, .. } => {
+        //         self.clear_color = wgpu::Color {
+        //             r: position.x as f64 / self.size.width as f64,
+        //             g: position.y as f64 / self.size.height as f64,
+        //             b: 1.0,
+        //             a: 1.0,
+        //         };
+        //         true
+        //     }
+        //     _ => false,
+        // }
     }
 
     pub fn update(&mut self)
     {
+        // update values in uniform buffer
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError>
